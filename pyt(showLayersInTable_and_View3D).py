@@ -87,6 +87,6 @@ class GCodeVisualizer(QMainWindow):
 
 
 app = QApplication(sys.argv)
-window = GCodeVisualizer('bolt.stl', 10)
+window = GCodeVisualizer('cube.stl', 100)
 window.show()
 sys.exit(app.exec_())
