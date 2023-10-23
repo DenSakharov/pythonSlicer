@@ -1,19 +1,19 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
 from stl import mesh
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
 
 # Загрузка STL файла
 mesh = mesh.Mesh.from_file('bolt.stl')  # Замените 'bolt.stl' на путь к вашему STL файлу
 
 # Определение количества слоев и их толщины
-num_layers = 70  # Измените на нужное количество слоев
+num_layers = 140  # Измените на нужное количество слоев
 z_min = np.min(mesh.v0[:, 2])  # Минимальная Z-координата
 z_max = np.max(mesh.v0[:, 2])  # Максимальная Z-координата
 layer_thickness = (z_max - z_min) / num_layers
 
 # Количество точек для каждого слоя (увеличенное заполнение)
-num_points_per_layer = 1000000  # Измените на нужное количество точек
+num_points_per_layer = 1000  # Измените на нужное количество точек
 
 # Создание списка для хранения координат пути
 path_coordinates = []
@@ -43,30 +43,41 @@ for layer_num in range(num_layers):
         # Добавляем координаты пути для текущего слоя
         path_coordinates.append(sorted_path)
 
-# Создание окна для отображения пути
-fig, ax = plt.subplots()
-plt.subplots_adjust(bottom=0.25)
+# Создание G-кода
+gcode = "G28 ; Home all axes\n"
+gcode += "G21 ; Set units to millimeters\n"
+gcode += "G90 ; Set to absolute positioning\n"
 
-layer_idx = 0
+# Начальные координаты
+current_x, current_y, current_z = 0, 0, 0
 
-def update(val):
-    global layer_idx
-    layer_idx = int(val)
-    ax.clear()
+for layer_num in range(len(path_coordinates)):
+    z_level = z_min + layer_thickness * (layer_num + 0.5)  # Перемещение по Z-координате в середину слоя
 
-    if layer_idx < len(path_coordinates):
-        x = path_coordinates[layer_idx][:, 0]
-        y = path_coordinates[layer_idx][:, 1]
-        ax.scatter(x, y, s=1)  # Используем scatter для отображения точек
-        ax.set_xlim(x.min(), x.max())
-        ax.set_ylim(y.min(), y.max())
+    for point in path_coordinates[layer_num]:
+        x, y = point
+        gcode += f"G1 X{x:.2f} Y{y:.2f} Z{z_level:.2f}\n"
+        current_x, current_y, current_z = x, y, z_level
 
-    plt.draw()
+# Завершаем G-код
+gcode += "G28 ; Home all axes\n"
 
-slider_ax = plt.axes([0.25, 0.1, 0.65, 0.03])
-slider = Slider(slider_ax, 'Layer', 0, num_layers - 1, valinit=0, valstep=1)
-slider.on_changed(update)
+# Сохраняем G-код в файл
+with open('3d_print.gcode', 'w') as gcode_file:
+    gcode_file.write(gcode)
 
-update(layer_idx)  # Отображение начального слоя
+# Создание 3D визуализации
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+
+for layer_num in range(len(path_coordinates)):
+    z_level = z_min + layer_thickness * (layer_num + 0.5)
+    x = path_coordinates[layer_num][:, 0]
+    y = path_coordinates[layer_num][:, 1]
+    ax.plot(x, y, np.full_like(x, z_level))
+
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
 
 plt.show()
